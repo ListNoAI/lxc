@@ -1,94 +1,93 @@
 #!/bin/bash
-# ==========================================
-# Script host-side unico: crea LXC.1 + Docker
-# Servizi: Filebrowser, Pigeonpod, Booklore, Portainer Agent, Dockwatch
-# ==========================================
 
-# --- CONFIGURAZIONE LXC ---
-CTID=201                  # ID del container aggiornato
-HOSTNAME=lxc1
-TEMPLATE=local:vztmpl/debian-12-standard_12.4-1_amd64.tar.gz
-STORAGE=local-lvm
-CORES=2
-MEMORY=2048                # MB
-ROOTFS=8G
-NET_BRIDGE=vmbr0
-FEATURES="nesting=1,keyctl=1"
-PASSWORD="LaTuaPassword"   # cambiare con password sicura
+# --- CONFIGURAZIONE ---
+CT_ID=201 
+HOSTNAME="docker-files"
+STORAGE="local-lvm" 
+PASSWORD="otrebla80" # <--- Cambiala qui
+BRIDGE="vmbr1"
+DISK_SIZE="40G" 
+RAM="2048"
 
-# --- CREA LXC ---
-pct create $CTID $TEMPLATE \
+echo "### 1. Download template Debian 13 ###"
+pveam update
+TEMPLATE=$(pveam available -section system | grep "debian-13" | awk '{print $2}' | head -n1)
+pveam download local "$TEMPLATE"
+
+echo "### 2. Creazione LXC $CT_ID ($HOSTNAME) ###"
+pct create $CT_ID local:vztmpl/$TEMPLATE \
   --hostname $HOSTNAME \
-  --cores $CORES \
-  --memory $MEMORY \
-  --net0 name=eth0,bridge=$NET_BRIDGE,ip=dhcp \
-  --rootfs $STORAGE:$ROOTFS \
-  --features $FEATURES \
+  --password $PASSWORD \
+  --net0 name=eth0,bridge=$BRIDGE,ip=dhcp \
+  --storage $STORAGE \
+  --rootfs $STORAGE:$DISK_SIZE \
+  --memory $RAM \
+  --cores 2 \
   --unprivileged 1 \
-  --password $PASSWORD
+  --features nesting=1,keyctl=1 \
+  --start 1
 
-# --- AVVIA LXC ---
-pct start $CTID
+echo "### 3. Installazione Docker ###"
+sleep 15
+pct exec $CT_ID -- bash -c "apt update && apt install -y curl && \
+curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
 
-# --- INSTALLA DOCKER E CONTAINER DENTRO LXC ---
-pct exec $CTID -- bash -c " \
-  apt update && apt upgrade -y && \
-  apt install -y docker.io docker-compose git curl && \
-  systemctl enable docker && systemctl start docker && \
-  mkdir -p /mnt/data/filebrowser /mnt/data/pigeonpod /mnt/data/booklore && \
-  cat <<EOF > /mnt/data/docker-compose.yml
-version: '3.8'
+echo "### 4. Setup Docker Compose e Volumi ###"
+pct exec $CT_ID -- bash -c "mkdir -p /opt/docker-files /data/booklore /data/pigeonpod /data/filebrowser_config"
+
+# Creazione del file docker-compose.yml con porte dalla 10001
+cat <<EOF | pct exec $CT_ID -- bash -c "cat > /opt/docker-files/docker-compose.yml"
 services:
   filebrowser:
     image: filebrowser/filebrowser:latest
     container_name: filebrowser
     ports:
-      - '10001:80'
+      - "10001:80"
     volumes:
-      - /mnt/data/filebrowser:/srv
+      - /data:/srv
+      - /data/filebrowser_config/database.db:/database.db
     restart: unless-stopped
 
   pigeonpod:
-    image: jorritfolmer/pigeonpod:latest
+    image: pigeonpod/pigeonpod:latest
     container_name: pigeonpod
     ports:
-      - '10002:80'
+      - "10002:8000"
     volumes:
-      - /mnt/data/pigeonpod:/app/data
+      - /data/pigeonpod:/app/data
     restart: unless-stopped
 
   booklore:
-    image: linuxserver/booklore:latest
+    image: booklore/booklore:latest
     container_name: booklore
     ports:
-      - '10003:80'
+      - "10003:3000"
     volumes:
-      - /mnt/data/booklore:/config
+      - /data/booklore:/app/data
     restart: unless-stopped
 
-  portainer-agent:
+  dockwatch:
+    image: not522/dockwatch:latest
+    container_name: dockwatch
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  portainer_agent:
     image: portainer/agent:latest
-    container_name: portainer-agent
-    environment:
-      - AGENT_CLUSTER_ADDR=tasks.agent
+    container_name: portainer_agent
+    ports:
+      - "9001:9001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     restart: unless-stopped
-
-  dockwatch:
-    image: containrrr/watchtower:latest
-    container_name: dockwatch
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --cleanup --interval 3600
-    restart: unless-stopped
 EOF
-  docker-compose -f /mnt/data/docker-compose.yml up -d
-"
 
-echo "✅ LXC.1 creata con CTID=$CTID e container Docker avviati!"
-echo "Porte dei servizi:"
-echo "Filebrowser -> 10001"
-echo "Pigeonpod  -> 10002"
-echo "Booklore   -> 10003"
+echo "### 5. Avvio Stack ###"
+pct exec $CT_ID -- bash -c "cd /opt/docker-files && docker compose up -d"
+
+echo "### LXC.1 PRONTO! ###"
+echo "Filebrowser: http://IP:10001"
+echo "Pigeonpod:   http://IP:10002"
+echo "Booklore:    http://IP:10003"
