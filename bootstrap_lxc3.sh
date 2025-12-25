@@ -1,102 +1,78 @@
 #!/bin/bash
-# ==========================================
-# Bootstrap LXC.3 docker-services
-# Debian 12 LXC
-# Servizi: FreshRSS, Readeck, Excalidraw, Fossflow, Flame (startpage/dashboard)
-# Dockwatch + Portainer Agent
-# Porte: 10011-10015
-# ==========================================
 
-# Aggiornamento base
-apt update && apt upgrade -y
+# 1. Installazione Docker
+apt update && apt install -y curl
+curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
 
-# Installazione prerequisiti
-apt install -y docker.io docker-compose git curl
+# 2. Setup cartelle
+mkdir -p /opt/docker-services
 
-# Abilita e avvia Docker
-systemctl enable docker
-systemctl start docker
-
-# Creazione directory dati persistenti
-mkdir -p /mnt/data/freshrss \
-         /mnt/data/readeck \
-         /mnt/data/excalidraw \
-         /mnt/data/fossflow \
-         /mnt/data/flame
-
-# Creazione docker-compose.yml
-cat <<EOF > /mnt/data/docker-compose.yml
-version: "3.8"
+# 3. Creazione Docker Compose
+cat <<EOF > /opt/docker-services/docker-compose.yml
 services:
   freshrss:
-    image: freshrss/freshrss
+    image: freshrss/freshrss:latest
     container_name: freshrss
     ports:
-      - "10011:80"
+      - "10020:80"
+    environment:
+      - TZ=Europe/Rome
     volumes:
-      - /mnt/data/freshrss:/var/www/FreshRSS/data
+      - freshrss_data:/var/www/FreshRSS/data
     restart: unless-stopped
 
   readeck:
-    image: readeck/readeck
+    image: codeberg.org/readeck/readeck:latest
     container_name: readeck
     ports:
-      - "10012:80"
+      - "10021:8000"
     volumes:
-      - /mnt/data/readeck:/app/data
+      - readeck_data:/readeck
     restart: unless-stopped
 
   excalidraw:
-    image: excalidraw/excalidraw
+    image: excalidraw/excalidraw:latest
     container_name: excalidraw
     ports:
-      - "10013:80"
+      - "10022:80"
     restart: unless-stopped
 
   fossflow:
-    image: fossflow/fossflow
+    image: fossflow/fossflow:latest
     container_name: fossflow
     ports:
-      - "10014:80"
+      - "10023:80"
     restart: unless-stopped
 
   flame:
-    image: pawelmalak/flame
+    image: pawelmalak/flame:latest
     container_name: flame
     ports:
-      - "10015:5005"
+      - "10024:5005"
     volumes:
-      - /mnt/data/flame:/app/data
+      - flame_data:/app/data
+    environment:
+      - PASSWORD=otrebla80
     restart: unless-stopped
 
-  portainer-agent:
+  portainer_agent:
     image: portainer/agent:latest
-    container_name: portainer-agent
-    environment:
-      - AGENT_CLUSTER_ADDR=tasks.agent
+    container_name: portainer_agent_services
+    ports:
+      - "9001:9001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     restart: unless-stopped
 
-  dockwatch:
-    image: containrrr/watchtower:latest
-    container_name: dockwatch
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --cleanup --interval 3600
-    restart: unless-stopped
-
+volumes:
+  freshrss_data:
+  readeck_data:
+  flame_data:
 EOF
 
-# Avvio dei container
-docker-compose -f /mnt/data/docker-compose.yml up -d
+# 4. Avvio
+cd /opt/docker-services
+docker compose up -d
 
-echo "✅ LXC.3 bootstrap completato!"
-echo "FreshRSS   -> http://<LXC3-IP>:10011"
-echo "Readeck    -> http://<LXC3-IP>:10012"
-echo "Excalidraw -> http://<LXC3-IP>:10013"
-echo "Fossflow   -> http://<LXC3-IP>:10014"
-echo "Flame      -> http://<LXC3-IP>:10015"
-echo "Portainer Agent attivo"
-echo "Dockwatch attivo per aggiornamenti automatici"
+echo "LXC.3 Installato! Flame Dashboard disponibile su porta 10024"
