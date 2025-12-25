@@ -38,7 +38,7 @@ services:
     restart: unless-stopped
 
   fossflow:
-    image: fossflow/fossflow:latest
+    image: stnsmith/fossflow:latest
     container_name: fossflow
     ports:
       - "10023:80"
