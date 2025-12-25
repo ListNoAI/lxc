@@ -1,55 +1,51 @@
 #!/bin/bash
-# ==========================================
-# Bootstrap LXC.4 docker-services
-# Debian 12 LXC
-# Servizi: Portainer Server + Diun (notifiche aggiornamenti Docker)
-# Porta: 9000 per Portainer
-# ==========================================
 
-# Aggiornamento base
-apt update && apt upgrade -y
+# 1. Installazione Docker
+apt update && apt install -y curl
+curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
 
-# Installazione prerequisiti
-apt install -y docker.io docker-compose git curl
+# 2. Setup cartelle
+mkdir -p /opt/docker-mgmt
 
-# Abilita e avvia Docker
-systemctl enable docker
-systemctl start docker
-
-# Creazione directory dati persistenti
-mkdir -p /mnt/data/portainer \
-         /mnt/data/diun
-
-# Creazione docker-compose.yml
-cat <<EOF > /mnt/data/docker-compose.yml
-version: "3.8"
+# 3. Creazione Docker Compose
+cat <<EOF > /opt/docker-mgmt/docker-compose.yml
 services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
+    command: -H unix:///var/run/docker.sock
     ports:
-      - "9000:9000"
+      - "10000:9000"
+      - "10443:9443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/data/portainer:/data
+      - portainer_data:/data
     restart: unless-stopped
 
   diun:
     image: crazymax/diun:latest
     container_name: diun
-    environment:
-      - TZ=Europe/Rome
-      - LOG_LEVEL=info
+    command: serve
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/data/diun:/data
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./diun/data:/data"
+    environment:
+      - "TZ=Europe/Rome"
+      - "DIUN_WATCH_WORKERS=20"
+      - "DIUN_WATCH_SCHEDULE=0 0 * * *" # Controlla ogni notte a mezzanotte
+      - "DIUN_NOTIF_GOTIFY_ENDPOINT=http://IP_GOTIFY" # Opzionale
     restart: unless-stopped
 
+volumes:
+  portainer_data:
 EOF
 
-# Avvio dei container
-docker-compose -f /mnt/data/docker-compose.yml up -d
+# 4. Avvio
+cd /opt/docker-mgmt
+docker compose up -d
 
-echo "✅ LXC.4 bootstrap completato!"
-echo "Portainer Server -> http://<LXC4-IP>:9000"
-echo "Diun attivo per notifiche aggiornamenti immagini Docker"
+echo "------------------------------------------------"
+echo "LXC.4 Management Pronto!"
+echo "Portainer (HTTP):  http://$(hostname -I | awk '{print $1}'):10000"
+echo "Portainer (HTTPS): https://$(hostname -I | awk '{print $1}'):10443"
+echo "------------------------------------------------"
