@@ -1,50 +1,36 @@
 #!/bin/bash
-# ==========================================
-# Bootstrap LXC.2 syncthing
-# Debian 12 LXC
-# Servizio: Syncthing nativo
-# ==========================================
 
-# Aggiornamento base
+# 1. Aggiornamento sistema
 apt update && apt upgrade -y
+apt install -y curl apt-transport-https
 
-# Installazione prerequisiti
-apt install -y curl gnupg lsb-release
+# 2. Aggiunta chiavi GPG del repository ufficiale Syncthing
+mkdir -p /etc/apt/keyrings
+curl -L -o /etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
 
-# Aggiunta repository Syncthing ufficiale
-curl -s https://syncthing.net/release-key.txt | apt-key add -
-echo "deb https://apt.syncthing.net/ syncthing stable" | tee /etc/apt/sources.list.d/syncthing.list
+# 3. Aggiunta del repository ufficiale a APT
+echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable" | tee /etc/apt/sources.list.d/syncthing.list
 
-# Aggiornamento lista pacchetti
+# 4. Installazione di Syncthing
 apt update
-
-# Installazione Syncthing
 apt install -y syncthing
 
-# Creazione directory dati
-mkdir -p /mnt/data/syncthing
+# 5. Configurazione iniziale e cambio porta a 10010
+# Avviamo syncthing un istante per generare il config.xml se non esiste
+syncthing --generate="/root/.config/syncthing"
 
-# Creazione servizio systemd per avvio automatico
-cat <<EOF > /etc/systemd/system/syncthing.service
-[Unit]
-Description=Syncthing - Open Source Continuous File Synchronization
-After=network.target
+# Modifichiamo il config per ascoltare su tutte le interfacce (0.0.0.0) e sulla porta 10010
+sed -i 's/127.0.0.1:8384/0.0.0.0:10010/g' /root/.config/syncthing/config.xml
 
-[Service]
-User=root
-ExecStart=/usr/bin/syncthing -home=/mnt/data/syncthing
-Restart=on-failure
-RestartSec=5
+# 6. Abilitazione e avvio del servizio per l'utente root
+systemctl enable syncthing@root
+systemctl start syncthing@root
 
-[Install]
-WantedBy=multi-user.target
-EOF
+# 7. Ottimizzazione Inotify (per monitorare molti file)
+echo "fs.inotify.max_user_watches=204800" | tee -a /etc/sysctl.conf
 
-# Ricarica systemd e abilita il servizio
-systemctl daemon-reload
-systemctl enable syncthing
-systemctl start syncthing
-
-echo "✅ LXC.2 bootstrap completato!"
-echo "Syncthing in esecuzione e avviato automaticamente"
-echo "Web GUI -> http://<LXC2-IP>:8384"
+echo "------------------------------------------------"
+echo "Syncthing installato correttamente!"
+echo "Accedi alla GUI qui: http://$(hostname -I | awk '{print $1}'):10010"
+echo "------------------------------------------------"
+echo "NOTA: Al primo accesso, imposta subito una password nella GUI."
