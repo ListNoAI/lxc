@@ -1,36 +1,49 @@
 #!/bin/bash
 # ==========================================
-# Bootstrap LXC.1 docker-files
-# Debian 12 LXC
-# Servizi: Filebrowser, Pigeonpod, Booklore
-# Dockwatch + Portainer Agent
-# Porte: 10001-10003
+# Script host-side unico: crea LXC.1 + Docker
+# Servizi: Filebrowser, Pigeonpod, Booklore, Portainer Agent, Dockwatch
 # ==========================================
 
-# Aggiornamento base
-apt update && apt upgrade -y
+# --- CONFIGURAZIONE LXC ---
+CTID=201                  # ID del container aggiornato
+HOSTNAME=lxc1
+TEMPLATE=local:vztmpl/debian-12-standard_12.4-1_amd64.tar.gz
+STORAGE=local-lvm
+CORES=2
+MEMORY=2048                # MB
+ROOTFS=8G
+NET_BRIDGE=vmbr0
+FEATURES="nesting=1,keyctl=1"
+PASSWORD="LaTuaPassword"   # cambiare con password sicura
 
-# Installazione prerequisiti
-apt install -y docker.io docker-compose git curl
+# --- CREA LXC ---
+pct create $CTID $TEMPLATE \
+  --hostname $HOSTNAME \
+  --cores $CORES \
+  --memory $MEMORY \
+  --net0 name=eth0,bridge=$NET_BRIDGE,ip=dhcp \
+  --rootfs $STORAGE:$ROOTFS \
+  --features $FEATURES \
+  --unprivileged 1 \
+  --password $PASSWORD
 
-# Abilita e avvia Docker
-systemctl enable docker
-systemctl start docker
+# --- AVVIA LXC ---
+pct start $CTID
 
-# Creazione directory dati persistenti
-mkdir -p /mnt/data/filebrowser \
-         /mnt/data/pigeonpod \
-         /mnt/data/booklore
-
-# Creazione docker-compose.yml
-cat <<EOF > /mnt/data/docker-compose.yml
-version: "3.8"
+# --- INSTALLA DOCKER E CONTAINER DENTRO LXC ---
+pct exec $CTID -- bash -c " \
+  apt update && apt upgrade -y && \
+  apt install -y docker.io docker-compose git curl && \
+  systemctl enable docker && systemctl start docker && \
+  mkdir -p /mnt/data/filebrowser /mnt/data/pigeonpod /mnt/data/booklore && \
+  cat <<EOF > /mnt/data/docker-compose.yml
+version: '3.8'
 services:
   filebrowser:
     image: filebrowser/filebrowser:latest
     container_name: filebrowser
     ports:
-      - "10001:80"
+      - '10001:80'
     volumes:
       - /mnt/data/filebrowser:/srv
     restart: unless-stopped
@@ -39,7 +52,7 @@ services:
     image: jorritfolmer/pigeonpod:latest
     container_name: pigeonpod
     ports:
-      - "10002:80"
+      - '10002:80'
     volumes:
       - /mnt/data/pigeonpod:/app/data
     restart: unless-stopped
@@ -48,7 +61,7 @@ services:
     image: linuxserver/booklore:latest
     container_name: booklore
     ports:
-      - "10003:80"
+      - '10003:80'
     volumes:
       - /mnt/data/booklore:/config
     restart: unless-stopped
@@ -70,15 +83,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --cleanup --interval 3600
     restart: unless-stopped
-
 EOF
+  docker-compose -f /mnt/data/docker-compose.yml up -d
+"
 
-# Avvio dei container
-docker-compose -f /mnt/data/docker-compose.yml up -d
-
-echo "✅ LXC.1 bootstrap completato!"
-echo "Filebrowser -> http://<LXC1-IP>:10001"
-echo "Pigeonpod  -> http://<LXC1-IP>:10002"
-echo "Booklore   -> http://<LXC1-IP>:10003"
-echo "Portainer Agent attivo"
-echo "Dockwatch attivo per aggiornamenti automatici"
+echo "✅ LXC.1 creata con CTID=$CTID e container Docker avviati!"
+echo "Porte dei servizi:"
+echo "Filebrowser -> 10001"
+echo "Pigeonpod  -> 10002"
+echo "Booklore   -> 10003"
