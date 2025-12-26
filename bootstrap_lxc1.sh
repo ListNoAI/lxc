@@ -12,7 +12,6 @@ fi
 
 # 3. Creazione struttura cartelle per i dati
 mkdir -p /opt/docker-files
-mkdir -p /data/booklore
 mkdir -p /data/pigeonpod/audio
 mkdir -p /data/pigeonpod/video
 mkdir -p /data/pigeonpod/cover
@@ -50,42 +49,6 @@ services:
       - 'SPRING_DATASOURCE_URL=jdbc:sqlite:/data/pigeon-pod.db'
     volumes:
       - /data/pigeonpod:/data
-
-  db_booklore:
-    image: mariadb:10.6
-    container_name: booklore_db
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=booklore_pass
-      - MYSQL_DATABASE=booklore
-      - MYSQL_USER=booklore_user
-      - MYSQL_PASSWORD=booklore_pass
-    volumes:
-      - /data/booklore_db:/var/lib/mysql
- 
-  booklore:
-    image: booklore/booklore:latest
-    container_name: booklore
-    ports:
-      - "10003:8080"
-    depends_on:
-      - db_booklore
-    environment:
-      - DB_TYPE=mysql
-      - DB_HOST=db_booklore
-      - DB_PORT=3306
-      - DB_NAME=booklore
-      - SPRING_DATASOURCE_USERNAME=booklore_user
-      - SPRING_DATASOURCE_PASSWORD=booklore_pass
-      - DB_USER=booklore_user
-      - DB_PASS=booklore_pass
-      - SPRING_PROFILES_ACTIVE=default
-      - SERVER_FORWARD_HEADERS_STRATEGY=native
-      # Aggiungi questa riga per evitare blocchi di sicurezza IP
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*
-    volumes:
-      - /data/booklore:/app/data
-    restart: unless-stopped
 
   dockwatch:
     image: ghcr.io/notifiarr/dockwatch:main
