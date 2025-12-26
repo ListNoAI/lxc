@@ -1,36 +1,50 @@
 #!/bin/bash
+# Installazione Syncthing su Debian / LXC
+set -e
 
-# 1. Aggiornamento sistema
-apt update && apt upgrade -y
+# Verifica root
+if [ "$(id -u)" -ne 0 ]; then
+  echo "❌ Esegui come root"
+  exit 1
+fi
+
+echo "▶ Aggiornamento sistema"
+apt update
+apt upgrade -y
 apt install -y curl apt-transport-https
 
-# 2. Aggiunta chiavi GPG del repository ufficiale Syncthing
+echo "▶ Aggiunta chiavi GPG Syncthing"
 mkdir -p /etc/apt/keyrings
 curl -L -o /etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
 
-# 3. Aggiunta del repository ufficiale a APT
+echo "▶ Aggiunta repository Syncthing"
 echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable" | tee /etc/apt/sources.list.d/syncthing.list
 
-# 4. Installazione di Syncthing
+echo "▶ Installazione Syncthing"
 apt update
 apt install -y syncthing
 
-# 5. Configurazione iniziale e cambio porta a 10010
-# Avviamo syncthing un istante per generare il config.xml se non esiste
-syncthing --generate="/root/.config/syncthing"
+# Genera config se manca
+CONFIG_DIR="/root/.config/syncthing"
+CONFIG_FILE="$CONFIG_DIR/config.xml"
 
-# Modifichiamo il config per ascoltare su tutte le interfacce (0.0.0.0) e sulla porta 10010
-sed -i 's/127.0.0.1:8384/0.0.0.0:10010/g' /root/.config/syncthing/config.xml
+echo "▶ Generazione config iniziale"
+if [ ! -f "$CONFIG_FILE" ]; then
+  mkdir -p "$CONFIG_DIR"
+  syncthing --generate="$CONFIG_DIR"
+fi
 
-# 6. Abilitazione e avvio del servizio per l'utente root
+echo "▶ Configurazione porta 10010"
+sed -i 's/127.0.0.1:8384/0.0.0.0:10010/g' "$CONFIG_FILE"
+
+echo "▶ Abilitazione servizio Syncthing per root"
 systemctl enable syncthing@root
-systemctl start syncthing@root
+systemctl restart syncthing@root
 
-# 7. Ottimizzazione Inotify (per monitorare molti file)
+echo "▶ Ottimizzazione Inotify"
 echo "fs.inotify.max_user_watches=204800" | tee -a /etc/sysctl.conf
 
 echo "------------------------------------------------"
 echo "Syncthing installato correttamente!"
-echo "Accedi alla GUI qui: http://$(hostname -I | awk '{print $1}'):10010"
+echo "Accedi alla GUI: http://$(hostname -I | awk '{print \$1}'):10010"
 echo "------------------------------------------------"
-echo "NOTA: Al primo accesso, imposta subito una password nella GUI."
