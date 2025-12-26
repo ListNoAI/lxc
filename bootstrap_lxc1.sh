@@ -67,8 +67,8 @@ services:
     ports:
       - "10004:80"
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=Europe/Rome
     volumes:
       - /home/dockwatch/config:/config
