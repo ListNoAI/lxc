@@ -79,6 +79,10 @@ services:
       - SPRING_DATASOURCE_PASSWORD=booklore_pass
       - DB_USER=booklore_user
       - DB_PASS=booklore_pass
+      - SPRING_PROFILES_ACTIVE=default
+      - SERVER_FORWARD_HEADERS_STRATEGY=native
+      # Aggiungi questa riga per evitare blocchi di sicurezza IP
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=* ```
     volumes:
       - /data/booklore:/app/data
     restart: unless-stopped
