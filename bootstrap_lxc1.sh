@@ -13,9 +13,12 @@ fi
 # 3. Creazione struttura cartelle per i dati
 mkdir -p /opt/docker-files
 mkdir -p /data/booklore
-mkdir -p /data/pigeonpod
+mkdir -p /data/pigeonpod/audio
+mkdir -p /data/pigeonpod/video
+mkdir -p /data/pigeonpod/cover
 mkdir -p /data/filebrowser_config
-touch /data/filebrowser_config/database.db # Crea il file per evitare errori di directory
+mkdir -p /home/dockwatch/config
+touch /data/filebrowser_config/database.db
 
 # 4. Creazione del file Docker Compose
 cat <<EOF > /opt/docker-files/docker-compose.yml
@@ -35,21 +38,18 @@ services:
 
   pigeonpod:
     image: 'ghcr.io/aizhimou/pigeon-pod:latest'
-    restart: unless-stopped
     container_name: pigeon-pod
+    restart: unless-stopped
     ports:
       - '10002:8080'
     environment:
-      - 'PIGEON_BASE_URL=https://pigeonpod.cloud' # set to your domain. NOTE: If you changed this domain during use, your previous subscription links will become invalid.
-      - 'PIGEON_AUDIO_FILE_PATH=/data/audio/' # set to your audio file path
-      - 'PIGEON_VIDEO_FILE_PATH=/data/video/' # set to your video file path
-      - 'PIGEON_COVER_FILE_PATH=/data/cover/' # set to your cover file path
-      - 'SPRING_DATASOURCE_URL=jdbc:sqlite:/data/pigeon-pod.db' # set to your database path
+      - 'PIGEON_BASE_URL=http://$(hostname -I | awk "{print \$1}"):10002'
+      - 'PIGEON_AUDIO_FILE_PATH=/data/audio/'
+      - 'PIGEON_VIDEO_FILE_PATH=/data/video/'
+      - 'PIGEON_COVER_FILE_PATH=/data/cover/'
+      - 'SPRING_DATASOURCE_URL=jdbc:sqlite:/data/pigeon-pod.db'
     volumes:
-      - data:/data
-
-volumes:
-  data:
+      - /data/pigeonpod:/data
 
   booklore:
     image: booklore/booklore:latest
@@ -60,20 +60,19 @@ volumes:
       - /data/booklore:/app/data
     restart: unless-stopped
 
- dockwatch:
-    container_name: dockwatch
+  dockwatch:
     image: ghcr.io/notifiarr/dockwatch:main
+    container_name: dockwatch
     restart: unless-stopped
     ports:
-      - 10004:80/tcp
+      - "10004:80"
     environment:
-      # - DOCKER_HOST=127.0.0.1:2375 # Uncomment and adjust accordingly if you use a socket proxy
-      - PUID=1001
-      - PGID=999
-      - TZ=America/New_York
+      - PUID=0
+      - PGID=0
+      - TZ=Europe/Rome
     volumes:
       - /home/dockwatch/config:/config
-      - /var/run/docker.sock:/var/run/docker.sock # Comment this line if you use a socket proxy
+      - /var/run/docker.sock:/var/run/docker.sock
 
   portainer_agent:
     image: portainer/agent:latest
@@ -88,6 +87,7 @@ EOF
 
 # 5. Avvio dei servizi
 cd /opt/docker-files
+docker compose down # Rimuove eventuali tentativi precedenti falliti
 docker compose up -d
 
 # Recupero IP locale
