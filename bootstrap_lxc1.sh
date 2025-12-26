@@ -75,6 +75,8 @@ services:
       - DB_HOST=db_booklore
       - DB_PORT=3306
       - DB_NAME=booklore
+      - SPRING_DATASOURCE_USERNAME=booklore_user
+      - SPRING_DATASOURCE_PASSWORD=booklore_pass
       - DB_USER=booklore_user
       - DB_PASS=booklore_pass
     volumes:
