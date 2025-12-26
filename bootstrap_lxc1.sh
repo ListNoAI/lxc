@@ -50,7 +50,8 @@ services:
       - 'SPRING_DATASOURCE_URL=jdbc:sqlite:/data/pigeon-pod.db'
     volumes:
       - /data/pigeonpod:/data
-db_booklore:
+
+  db_booklore:
     image: mariadb:10.6
     container_name: booklore_db
     restart: unless-stopped
