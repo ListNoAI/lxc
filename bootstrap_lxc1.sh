@@ -5,15 +5,17 @@ apt update && apt upgrade -y
 apt install -y curl gnupg lsb-release
 
 # 2. Installazione Docker (metodo ufficiale)
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
+if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+fi
 
 # 3. Creazione struttura cartelle per i dati
-# Usiamo /data come base per tutti i tuoi file media
 mkdir -p /opt/docker-files
 mkdir -p /data/booklore
 mkdir -p /data/pigeonpod
 mkdir -p /data/filebrowser_config
+touch /data/filebrowser_config/database.db # Crea il file per evitare errori di directory
 
 # 4. Creazione del file Docker Compose
 cat <<EOF > /opt/docker-files/docker-compose.yml
@@ -52,6 +54,8 @@ services:
   dockwatch:
     image: not522/dockwatch:latest
     container_name: dockwatch
+    ports:
+      - "10004:1609"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
@@ -71,10 +75,14 @@ EOF
 cd /opt/docker-files
 docker compose up -d
 
+# Recupero IP locale
+IP_ADDR=$(hostname -I | awk '{print $1}')
+
 echo "------------------------------------------------"
 echo "Installazione completata con successo!"
-echo "Filebrowser: http://$(hostname -I | awk '{print $1}'):10001"
-echo "Pigeonpod:   http://$(hostname -I | awk '{print $1}'):10002"
-echo "Booklore:    http://$(hostname -I | awk '{print $1}'):10003"
-echo "Portainer Agent attivo sulla porta 9001"
+echo "Filebrowser:    http://$IP_ADDR:10001"
+echo "Pigeonpod:      http://$IP_ADDR:10002"
+echo "Booklore:       http://$IP_ADDR:10003"
+echo "Dockwatch:      http://$IP_ADDR:10004"
+echo "Portainer Ag.:  Porta 9001"
 echo "------------------------------------------------"
