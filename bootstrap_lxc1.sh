@@ -67,7 +67,7 @@ services:
     image: booklore/booklore:latest
     container_name: booklore
     ports:
-      - "10003:3000"
+      - "10003:8080"
     depends_on:
       - db_booklore
     environment:
