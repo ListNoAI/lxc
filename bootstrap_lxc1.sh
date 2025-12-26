@@ -60,14 +60,20 @@ volumes:
       - /data/booklore:/app/data
     restart: unless-stopped
 
-  dockwatch:
-    image: not522/dockwatch:latest
+ dockwatch:
     container_name: dockwatch
-    ports:
-      - "10004:1609"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    image: ghcr.io/notifiarr/dockwatch:main
     restart: unless-stopped
+    ports:
+      - 10004:80/tcp
+    environment:
+      # - DOCKER_HOST=127.0.0.1:2375 # Uncomment and adjust accordingly if you use a socket proxy
+      - PUID=1001
+      - PGID=999
+      - TZ=America/New_York
+    volumes:
+      - /home/dockwatch/config:/config
+      - /var/run/docker.sock:/var/run/docker.sock # Comment this line if you use a socket proxy
 
   portainer_agent:
     image: portainer/agent:latest
